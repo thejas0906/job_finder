@@ -70,14 +70,13 @@ const register = async (req, res) => {
 
     // insert into recruiter_info if recruiter
     if (role === "recruiter") {
-
+      const { name, phone, location } = req.body;
       await pool.query(
         `INSERT INTO recruiter_info
-        (comp_id)
-        VALUES (UUID_TO_BIN(?))`,
-        [user_id]
+        (comp_id, comp_name, phone, location)
+        VALUES (UUID_TO_BIN(?), ?, ?, ?)`,
+        [user_id, name, phone, location]
       );
-
     }
 
     const token = generateToken(user_id);
