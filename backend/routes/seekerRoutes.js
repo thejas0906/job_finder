@@ -11,15 +11,15 @@ const {
 } = require("../controllers/applicationController");
 
 // GET /api/seekers/:id
-router.get("/:id", protect, getSeekerProfile);
+router.get("/me", protect, getSeekerProfile);
 
 // PUT /api/seekers/:id
-router.put("/:id", protect, updateSeekerProfile);
+router.put("/me", protect, updateSeekerProfile);
 
 // PUT /api/seekers/:id/resume
-router.put("/:id/resume", protect, updateResume);
+router.put("/me/resume", protect, updateResume);
 
 // GET /api/seekers/:id/applications
-router.get("/:id/applications", getSeekerApplications);
+router.get("/me/applications", protect, getSeekerApplications);
 
 module.exports = router;

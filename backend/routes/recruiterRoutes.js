@@ -8,12 +8,12 @@ const {
 } = require("../controllers/recruiterController");
 
 // GET /api/recruiters/:id
-router.get("/:id", protect, getRecruiterProfile);
+router.get("/me", protect, getRecruiterProfile);
 
 // PUT /api/recruiters/:id
-router.put("/:id", protect, updateRecruiterProfile);
+router.put("/me", protect, updateRecruiterProfile);
 
 // GET /api/recruiters/:id/jobs
-router.get("/:id/jobs", protect, getRecruiterJobs);
+router.get("/me/jobs", protect, getRecruiterJobs);
 
 module.exports = router;

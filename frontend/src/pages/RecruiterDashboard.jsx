@@ -1,119 +1,207 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import Header from '../components/Header';
-import { FiPlus, FiEdit2, FiTrash2, FiUserCheck, FiUserX, FiEye } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { JobContext } from '../context/JobContext';
 
+// ── auth helper ───────────────────────────────────────────────────────────────
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+});
+
 function RecruiterDashboard() {
-  const { jobs, addJob, currentUser } = useContext(JobContext);
+  const { addJob } = useContext(JobContext);
   const [activeTab, setActiveTab] = useState('postings');
 
-  // filter jobs posted by this recruiter (mock using company or assuming all are for demo)
-  // in real app, we filter by posted_by === currentUser.id
-  const myJobs = jobs; // for demo, show all jobs or slice
+  // ── local state for this dashboard ─────────────────────────────────────────
+  const [myJobs,      setMyJobs]      = useState([]);
+  const [applicants,  setApplicants]  = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
 
-  const applicants = [
-    { id: 101, name: 'Alice Smith', job: 'Senior Software Engineer', experience: '5 Yrs', status: 'Pending' },
-    { id: 102, name: 'Bob Johnson', job: 'Frontend Developer', experience: '2 Yrs', status: 'Pending' },
-  ];
+  // ── fetch recruiter's own jobs ──────────────────────────────────────────────
+  useEffect(() => {
+    const fetchMyJobs = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/recruiters/me/jobs', {
+          headers: authHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMyJobs(data);
+        }
+      } catch (e) {
+        console.error('Failed to load jobs', e);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+    fetchMyJobs();
+  }, []);
 
+  // ── fetch applicants when tab is opened ────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'applicants' || myJobs.length === 0) return;
+
+    const fetchApplicants = async () => {
+      try {
+        // Load applicants for the first job as a demo; in production
+        // you'd let the recruiter pick which job to view
+        const res = await fetch(
+          `http://localhost:5000/api/jobs/${myJobs[0].id}/applications`,
+          { headers: authHeaders() }
+        );
+        if (res.ok) setApplicants(await res.json());
+      } catch (e) {
+        console.error('Failed to load applicants', e);
+      }
+    };
+    fetchApplicants();
+  }, [activeTab, myJobs]);
+
+  // ── post a new job ──────────────────────────────────────────────────────────
   const handlePostJob = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const newJob = {
-      title: formData.get('title'),
-      location: formData.get('location'),
-      salary_lpa: formData.get('salary'),
+
+    const newJobPayload = {
+      title:       formData.get('title'),
+      location:    formData.get('location'),
+      salary:      formData.get('salary'),
       description: formData.get('description'),
-      company_name: 'TechFlow Corp', // Mock recruiter company
     };
-    
-    // Convert to the context expected format somewhat
-    const newJobContext = {
-      title: newJob.title,
-      company: newJob.company_name,
-      location: newJob.location,
-      salary: `₹ ${newJob.salary_lpa} LPA`,
-      description: newJob.description,
-      tags: [],
-      postedAgo: 'Just now',
-      applicants: 0,
-      status: 'Active'
-    };
-    
-    await addJob(newJobContext);
-    setActiveTab('postings');
+
+    try {
+      const res = await fetch('http://localhost:5000/api/jobs', {
+        method:  'POST',
+        headers: authHeaders(),
+        body:    JSON.stringify(newJobPayload),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        const newJobLocal = {
+          id:         saved.jobId,
+          title:      newJobPayload.title,
+          location:   newJobPayload.location,
+          salary_lpa: newJobPayload.salary,
+          description:newJobPayload.description,
+          applicants: 0,
+          status:     'Active',
+          tags:       [],
+        };
+        setMyJobs(prev => [newJobLocal, ...prev]);
+        e.target.reset();
+        setActiveTab('postings');
+      }
+    } catch (err) {
+      console.error('Failed to post job', err);
+    }
+  };
+
+  // ── delete a job ────────────────────────────────────────────────────────────
+  const handleDeleteJob = async (jobId) => {
+    if (!window.confirm('Delete this job posting?')) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/jobs/${jobId}`, {
+        method:  'DELETE',
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        setMyJobs(prev => prev.filter(j => j.id !== jobId));
+      }
+    } catch (err) {
+      console.error('Failed to delete job', err);
+    }
   };
 
   return (
     <div className="dashboard-page">
       <Header />
       <div className="main-content" style={{ display: 'flex', gap: '32px', maxWidth: '1200px', margin: '32px auto', padding: '0 32px' }}>
-        
-        <aside style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(12px)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: 'var(--shadow-sm)' }}>
+
+        <aside style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(226,232,240,0.8)', boxShadow: 'var(--shadow-sm)' }}>
           <h2 style={{ marginBottom: '24px', fontSize: '1.25rem' }}>Recruiter Panel</h2>
-          <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'postings' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'postings' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }} onClick={() => setActiveTab('postings')}>My Job Postings</button>
-          <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'applicants' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'applicants' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }} onClick={() => setActiveTab('applicants')}>Manage Applicants</button>
-          <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'new' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'new' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }} onClick={() => setActiveTab('new')}>Post a New Job</button>
+          {['postings', 'applicants', 'new'].map(tab => (
+            <button key={tab}
+              style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === tab ? 'rgba(99,102,241,0.1)' : 'transparent', color: activeTab === tab ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === 'postings' ? 'My Job Postings' : tab === 'applicants' ? 'Manage Applicants' : 'Post a New Job'}
+            </button>
+          ))}
         </aside>
 
-        <main style={{ flex: 1, background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(16px)', padding: '40px', borderRadius: '16px', border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: 'var(--shadow-md)' }}>
+        <main style={{ flex: 1, background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(16px)', padding: '40px', borderRadius: '16px', border: '1px solid rgba(226,232,240,0.8)', boxShadow: 'var(--shadow-md)' }}>
+
+          {/* ── MY JOB POSTINGS ── */}
           {activeTab === 'postings' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                 <h3 style={{ fontSize: '1.5rem' }}>Active Job Postings</h3>
-                <button className="btn-primary" onClick={() => setActiveTab('new')}><FiPlus style={{ marginRight: '8px' }}/> Post Job</button>
+                <button className="btn-primary" onClick={() => setActiveTab('new')}>
+                  <FiPlus style={{ marginRight: '8px' }} /> Post Job
+                </button>
               </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid rgba(226, 232, 240, 0.8)' }}>
-                      <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Job Title</th>
-                      <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Applicants</th>
-                      <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Status</th>
-                      <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myJobs.slice(0, 5).map(job => (
-                      <tr key={job.id} style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.4)', transition: 'background 0.2s' }}>
-                        <td style={{ padding: '16px 12px', fontWeight: '600', color: 'var(--primary-blue)' }}>{job.title}</td>
-                        <td style={{ padding: '16px 12px' }}>{job.applicants || 0}</td>
-                        <td style={{ padding: '16px 12px' }}>
-                          <span style={{ padding: '4px 12px', borderRadius: '12px', background: '#dcfce7', color: '#166534', fontSize: '0.85rem', fontWeight: '600' }}>{job.status || 'Active'}</span>
-                        </td>
-                        <td style={{ padding: '16px 12px', display: 'flex', gap: '16px' }}>
-                          <button style={{ color: 'var(--primary-blue)', cursor: 'pointer', fontSize: '1.2rem' }} title="Edit"><FiEdit2 /></button>
-                          <button style={{ color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }} title="Delete"><FiTrash2 /></button>
-                        </td>
+              {loadingJobs ? (
+                <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid rgba(226,232,240,0.8)' }}>
+                        {['Job Title', 'Applicants', 'Status', 'Actions'].map(h => (
+                          <th key={h} style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {myJobs.map(job => (
+                        <tr key={job.id} style={{ borderBottom: '1px solid rgba(226,232,240,0.4)' }}>
+                          <td style={{ padding: '16px 12px', fontWeight: '600', color: 'var(--primary-blue)' }}>{job.title}</td>
+                          <td style={{ padding: '16px 12px' }}>{job.applicants || 0}</td>
+                          <td style={{ padding: '16px 12px' }}>
+                            <span style={{ padding: '4px 12px', borderRadius: '12px', background: '#dcfce7', color: '#166534', fontSize: '0.85rem', fontWeight: '600' }}>
+                              {job.status || 'Active'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px 12px', display: 'flex', gap: '16px' }}>
+                            <button style={{ color: 'var(--primary-blue)', cursor: 'pointer', fontSize: '1.2rem' }} title="Edit"><FiEdit2 /></button>
+                            <button style={{ color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }} title="Delete" onClick={() => handleDeleteJob(job.id)}><FiTrash2 /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
+          {/* ── MANAGE APPLICANTS ── */}
           {activeTab === 'applicants' && (
             <div>
               <h3 style={{ marginBottom: '32px', fontSize: '1.5rem' }}>Applicant Tracking</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid rgba(226, 232, 240, 0.8)' }}>
-                    <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Applicant Name</th>
-                    <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Applied For</th>
-                    <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Experience</th>
-                    <th style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>Actions</th>
+                  <tr style={{ borderBottom: '2px solid rgba(226,232,240,0.8)' }}>
+                    {['Applicant Name', 'Applied For', 'Experience', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {applicants.map(app => (
-                    <tr key={app.id} style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.4)' }}>
+                    <tr key={app.id} style={{ borderBottom: '1px solid rgba(226,232,240,0.4)' }}>
                       <td style={{ padding: '16px 12px', fontWeight: '600' }}>{app.name}</td>
                       <td style={{ padding: '16px 12px', color: 'var(--primary-blue)' }}>{app.job}</td>
                       <td style={{ padding: '16px 12px' }}>{app.experience}</td>
-                      <td style={{ padding: '16px 12px', display: 'flex', gap: '16px' }}>
-                        <Link to={`/application/${app.id}`} style={{ display: 'inline-block' }}>
-                           <button className="btn-outline" style={{ padding: '6px 16px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>Review Application</button>
+                      <td style={{ padding: '16px 12px' }}>
+                        {/* Pass seekerId in URL so ApplicationDetails can load it */}
+                        <Link to={`/application/${app.id}`}>
+                          <button className="btn-outline" style={{ padding: '6px 16px', fontSize: '0.9rem' }}>
+                            Review Application
+                          </button>
                         </Link>
                       </td>
                     </tr>
@@ -123,6 +211,7 @@ function RecruiterDashboard() {
             </div>
           )}
 
+          {/* ── POST NEW JOB ── */}
           {activeTab === 'new' && (
             <div>
               <h3 style={{ marginBottom: '32px', fontSize: '1.5rem' }}>Post a New Job</h3>
@@ -142,13 +231,18 @@ function RecruiterDashboard() {
                   </div>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Job Description</label>
-                    <textarea name="description" rows="5" style={{ padding: '16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} placeholder="Detailed job requirements..." required></textarea>
+                    <textarea name="description" rows="5"
+                      style={{ padding: '16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', outline: 'none', fontFamily: 'inherit', resize: 'vertical', width: '100%' }}
+                      placeholder="Detailed job requirements..." required />
                   </div>
                 </div>
-                <button className="btn-primary" type="submit" style={{ marginTop: '32px', padding: '14px 40px', fontSize: '1.1rem' }}>Publish Job</button>
+                <button className="btn-primary" type="submit" style={{ marginTop: '32px', padding: '14px 40px', fontSize: '1.1rem' }}>
+                  Publish Job
+                </button>
               </form>
             </div>
           )}
+
         </main>
       </div>
     </div>
