@@ -14,6 +14,10 @@ export function JobProvider({ children }) {
   const [savedJobs, setSavedJobs] = useState([]);
   
   const [users, setUsers] = useState([]); // Mock for admin
+  const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${localStorage.getItem('token')}`  // ← send JWT
+});
 
   // Fetch jobs dynamically from backend
   useEffect(() => {
@@ -47,23 +51,26 @@ export function JobProvider({ children }) {
   }, []);
 
   // Fetch applied jobs for Seeker
-  useEffect(() => {
-    const fetchApplied = async () => {
-      if (currentUser.role === 'seeker' && currentUser.id) {
-        try {
-          const res = await fetch(`http://localhost:5000/api/seekers/${currentUser.id}/applications`);
-          if (res.ok) {
-            const data = await res.json();
-            // Store just the job_ids applied to
-            setAppliedJobs(data.map(app => app.job_id || app.id));
-          }
-        } catch (e) {
-          console.error(e);
+  // Replace the fetchApplied useEffect with:
+useEffect(() => {
+  const fetchApplied = async () => {
+    const token = localStorage.getItem('token');
+    if (currentUser.role === 'seeker' && token) {
+      try {
+        const res = await fetch('http://localhost:5000/api/seekers/me/applications', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAppliedJobs(data.map(app => app.job_id || app.id));
         }
+      } catch (e) {
+        console.error(e);
       }
-    };
-    fetchApplied();
-  }, [currentUser]);
+    }
+  };
+  fetchApplied();
+}, [currentUser]);
 
   const addJob = async (newJob) => {
     // Optimistic UI update or wait for BE. Realistically, we update BE:

@@ -11,6 +11,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ApplicationDetails from './pages/ApplicationDetails';
 import About from './pages/About';
 import Contact from './pages/Contact';
+import ForgotPassword from './pages/ForgotPassword';
 import NotFound from './pages/NotFound';
 import './App.css';
 
@@ -26,6 +27,7 @@ function App() {
             <Route path="/job/:id" element={<JobDetails />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             
             {/* Dashboards */}
             <Route path="/dashboard/seeker" element={<JobSeekerDashboard />} />

@@ -78,19 +78,37 @@ function Header({ searchTerm = '', setSearchTerm }) {
         </div>
 
         <div className="header-actions">
-          <div className="portals-dropdown" style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setShowPortals(!showPortals)}>
-             <div className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Login <IconChevronDown />
-             </div>
-             {showPortals && (
-                <div className="advanced-search-dropdown" style={{ right: 0, left: 'auto', width: '220px', padding: '16px', zIndex: 300 }}>
-                  <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Sign In As</h4>
-                  <Link to="/login" style={{ display: 'block', padding: '8px 0', borderBottom: '1px solid var(--border-color)', fontWeight: '500' }}>Job Seeker</Link>
-                  <Link to="/login" style={{ display: 'block', padding: '8px 0', fontWeight: '500' }}>Recruiter / Employer</Link>
-                </div>
-             )}
-          </div>
-          <Link to="/register" className="btn-primary">Register</Link>
+          {localStorage.getItem('token') ? (
+            <>
+              <Link to={`/dashboard/${localStorage.getItem('userRole')}`} className="btn-outline">Dashboard</Link>
+              <button 
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = '/';
+                }} 
+                className="btn-primary" 
+                style={{ background: '#ef4444', border: 'none' }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="portals-dropdown" style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setShowPortals(!showPortals)}>
+                 <div className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Login <IconChevronDown />
+                 </div>
+                 {showPortals && (
+                    <div className="advanced-search-dropdown" style={{ right: 0, left: 'auto', width: '220px', padding: '16px', zIndex: 300 }}>
+                      <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Sign In As</h4>
+                      <Link to="/login" style={{ display: 'block', padding: '8px 0', borderBottom: '1px solid var(--border-color)', fontWeight: '500' }}>Job Seeker</Link>
+                      <Link to="/login" style={{ display: 'block', padding: '8px 0', fontWeight: '500' }}>Recruiter / Employer</Link>
+                    </div>
+                 )}
+              </div>
+              <Link to="/register" className="btn-primary">Register</Link>
+            </>
+          )}
         </div>
       </div>
     </header>

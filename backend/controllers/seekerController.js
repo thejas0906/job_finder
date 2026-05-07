@@ -1,15 +1,15 @@
 const pool = require("../config/db");
 
-// GET /api/seekers/:id — get seeker profile
+// GET /api/seekers/me
 const getSeekerProfile = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.user.id;   // from JWT
 
     const [rows] = await pool.query(
       `SELECT
         BIN_TO_UUID(si.seeker_id) AS id,
         u.email,
-        si.seeker_name            AS name,
+        si.seeker_name             AS name,
         si.age,
         si.degree,
         si.experience,
@@ -36,10 +36,12 @@ const getSeekerProfile = async (req, res) => {
   }
 };
 
-// PUT /api/seekers/:id — update seeker profile
+// PUT /api/seekers/me
+// JobSeekerDashboard sends: { name, email, skills, experience }
 const updateSeekerProfile = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.user.id;   // from JWT
+
     const {
       name,
       age,
@@ -62,8 +64,14 @@ const updateSeekerProfile = async (req, res) => {
 
     await pool.query(
       `UPDATE seeker_info
-       SET seeker_name = ?, age = ?, degree = ?, experience = ?,
-           expected_salary = ?, field = ?, work_mode = ?, location = ?
+       SET seeker_name    = ?,
+           age            = ?,
+           degree         = ?,
+           experience     = ?,
+           expected_salary= ?,
+           field          = ?,
+           work_mode      = ?,
+           location       = ?
        WHERE seeker_id = UUID_TO_BIN(?)`,
       [name, age, degree, experience, expected_salary, field, work_mode, location, id]
     );
@@ -75,17 +83,16 @@ const updateSeekerProfile = async (req, res) => {
   }
 };
 
-// PUT /api/seekers/:id/resume — upsert resume path
+// PUT /api/seekers/me/resume
 const updateResume = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.user.id;   // from JWT — was wrongly using req.params.id
     const { resumePath } = req.body;
 
     if (!resumePath) {
       return res.status(400).json({ message: "resumePath is required" });
     }
 
-    // Upsert pattern — insert or update
     await pool.query(
       `INSERT INTO seeker_resume (seeker_id, resume)
        VALUES (UUID_TO_BIN(?), ?)

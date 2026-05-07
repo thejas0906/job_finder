@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Header from '../components/Header';
 import { FiEdit, FiBookmark, FiFileText } from 'react-icons/fi';
 import { JobContext } from '../context/JobContext';
@@ -7,15 +7,44 @@ import { Link } from 'react-router-dom';
 function JobSeekerDashboard() {
   const { jobs, appliedJobs, currentUser } = useContext(JobContext);
   const [activeTab, setActiveTab] = useState('profile');
+  const [resumeFile, setResumeFile] = useState(null);           // newly picked file
+  const [hasExistingResume, setHasExistingResume] = useState(false); // from DB
 
-  // mock state for profile
   const [profile, setProfile] = useState({
-    name: currentUser.name || 'Shruti',
-    email: currentUser.email || 'shruti@example.com',
-    skills: 'React, JavaScript, SQL',
-    experience: '2 Years',
+    name: '',
+    email: '',
+    skills: '',
+    experience: '',
     isEditing: false
   });
+
+  // Fetch real seeker profile (including resume) from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://localhost:5000/api/seekers/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setProfile(prev => ({
+          ...prev,
+          name:       data.name       || '',
+          email:      data.email      || '',
+          skills:     data.field      || '',
+          experience: data.experience ? `${data.experience} Years` : '',
+        }));
+        // If a resume filename already exists in DB, mark as uploaded
+        if (data.resume) setHasExistingResume(true);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleFileChange = (e) => setResumeFile(e.target.files[0] || null);
+
+  // True when seeker already has a DB resume OR just picked a new file
+  const resumeReady = !!resumeFile || hasExistingResume;
 
   const appliedJobsList = jobs.filter(job => appliedJobs.includes(job.id));
 
@@ -49,11 +78,11 @@ function JobSeekerDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                 <div className="form-group">
                   <label>Full Name</label>
-                  <input type="text" value={profile.name} disabled={!profile.isEditing} onChange={e => setProfile({...profile, name: e.target.value})} />
+                  <input type="text" value={profile.name} placeholder="Name" disabled={!profile.isEditing} onChange={e => setProfile({...profile, name: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label>Email ID</label>
-                  <input type="email" value={profile.email} disabled={!profile.isEditing} onChange={e => setProfile({...profile, email: e.target.value})} />
+                  <input type="email" value={profile.email} placeholder="Your Mail" disabled={!profile.isEditing} onChange={e => setProfile({...profile, email: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label>Top Skills</label>
@@ -61,7 +90,35 @@ function JobSeekerDashboard() {
                 </div>
                 <div className="form-group">
                   <label>Update Resume (PDF)</label>
-                  <input type="file" accept=".pdf" disabled={!profile.isEditing} />
+                  <input
+                    id="dashResumeInput"
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileChange}
+                    disabled={!profile.isEditing}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!profile.isEditing}
+                    onClick={() => document.getElementById('dashResumeInput').click()}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      border: resumeReady ? '1.5px solid #22c55e' : '1.5px solid #cbd5e1',
+                      background: resumeReady ? '#f0fdf4' : '#f8fafc',
+                      color: resumeReady ? '#16a34a' : '#64748b',
+                      fontWeight: '500',
+                      cursor: profile.isEditing ? 'pointer' : 'not-allowed',
+                      textAlign: 'left',
+                      fontSize: '0.95rem',
+                      transition: 'all 0.2s',
+                      opacity: profile.isEditing ? 1 : 0.6,
+                    }}
+                  >
+                    {resumeReady ? '✓ Resume uploaded' : 'Choose File'}
+                  </button>
                 </div>
               </div>
             </div>

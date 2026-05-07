@@ -39,3 +39,8 @@ Thumbs.db
 # temporary files
 *.tmp
 *.temp
+
+check_user.js
+create_admin.js
+
+uploads/
