@@ -89,7 +89,23 @@ function Register() {
 
             <div className="form-group">
               <label>Phone Number</label>
-              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required />
+              <input 
+                type="tel" 
+                name="phone" 
+                value={formData.phone} 
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  if (val.length <= 10) {
+                    setFormData({ ...formData, phone: val });
+                  }
+                }} 
+                placeholder="10-digit number"
+                maxLength={10}
+                required 
+              />
+              {formData.phone && formData.phone.length < 10 && (
+                <small style={{ color: '#ef4444', marginTop: '4px', display: 'block' }}>Must be exactly 10 digits</small>
+              )}
             </div>
 
             {role === 'seeker' && (

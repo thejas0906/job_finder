@@ -3,7 +3,7 @@ const pool = require("../config/db");
 // GET /api/recruiters/me
 const getRecruiterProfile = async (req, res) => {
   try {
-    const id = req.user.id;   // from JWT
+    const id = req.user.id;   
 
     const [rows] = await pool.query(
       `SELECT
@@ -32,7 +32,7 @@ const getRecruiterProfile = async (req, res) => {
 // PUT /api/recruiters/me
 const updateRecruiterProfile = async (req, res) => {
   try {
-    const id = req.user.id;   // from JWT — was wrongly using req.params.id
+    const id = req.user.id;   
     const { comp_name, phone, location } = req.body;
 
     const [existing] = await pool.query(
@@ -61,7 +61,7 @@ const updateRecruiterProfile = async (req, res) => {
 // GET /api/recruiters/me/jobs
 const getRecruiterJobs = async (req, res) => {
   try {
-    const id = req.user.id;   // from JWT — was wrongly using req.params.id
+    const id = req.user.id;   
 
     const [rows] = await pool.query(
       `SELECT
@@ -70,7 +70,8 @@ const getRecruiterJobs = async (req, res) => {
         j.job_desc              AS description,
         j.salary                AS salary_lpa,
         j.location,
-        j.skillls               AS skills,
+        j.experience,
+        j.skills                AS skills,
         r.comp_name             AS company_name,
         (SELECT COUNT(*) FROM applied_jobs aj WHERE aj.job_id = j.job_id) AS applicants
        FROM jobs j

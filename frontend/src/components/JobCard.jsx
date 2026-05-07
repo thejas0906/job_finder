@@ -61,12 +61,8 @@ function JobCard({ job }) {
         ))}
       </div>
 
-      <div className="job-card-bottom">
-        <span className="posted-time">{job.postedAgo}</span>
-        <button className="save-btn">
-          <FiBookmark className="bookmark-icon" />
-          <span>Save</span>
-        </button>
+      <div className="job-card-bottom" style={{ justifyContent: 'flex-start' }}>
+        <span className="posted-time">{job.postedAgo === 'Invalid Date' ? 'Posted recently' : job.postedAgo}</span>
       </div>
     </div>
   );

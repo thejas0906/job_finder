@@ -34,8 +34,23 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
 });
 
+const handleUpload = (req, res, next) => {
+  const uploadSingle = upload.single("resume");
+  uploadSingle(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: "File is too large. Maximum size is 5MB." });
+      }
+      return res.status(400).json({ message: err.message });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  });
+};
+
 // ── Routes ───────────────────────────────────────────────────────────────────
-router.post("/register",       upload.single("resume"), register);
+router.post("/register",       handleUpload, register);
 router.post("/login",          login);
 router.post("/forgot-password",forgotPassword);
 router.post("/verify-otp",     verifyOtp);

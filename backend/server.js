@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const path = require("path");
 
 const app = express();
 
@@ -10,6 +11,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Serve uploads folder statically so resumes can be accessed by frontend
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ── Routes ──────────────────────────────────────────────────────────────────
 const authRoutes        = require("./routes/authRoutes");

@@ -1,34 +1,80 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Header from '../components/Header';
-import { FiCheck, FiX, FiDownload, FiUser, FiBriefcase, FiMail } from 'react-icons/fi';
+import { FiCheck, FiX, FiDownload, FiUser, FiBriefcase, FiMail, FiFileText } from 'react-icons/fi';
 
 function ApplicationDetails() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  // Mock data for the specific application
-  const [application, setApplication] = useState({
-    id: id,
-    name: id === '101' ? 'Alice Smith' : 'Bob Johnson',
-    email: id === '101' ? 'alice@example.com' : 'bob@example.com',
-    jobTitle: id === '101' ? 'Senior Software Engineer' : 'Frontend Developer',
-    experience: id === '101' ? '5 Yrs' : '2 Yrs',
-    status: 'Pending',
-    coverLetter: "I am very excited to apply for this position. I have been following your company's work for a long time and I believe my skills match completely with what you are looking for.",
-    appliedAt: '2 days ago',
-    skills: ['React', 'Node.js', 'SQL', 'AWS']
-  });
+  
+  const queryParams = new URLSearchParams(location.search);
+  const jobId = queryParams.get('jobId');
 
-  const handleUpdateStatus = (newStatus) => {
-    // In a real app, make an API call to update status here
-    setApplication({ ...application, status: newStatus });
-    // Simulate API feedback
-    setTimeout(() => {
-      // navigate back to dashboard after a bit, or stay
-      alert(`Application marked as ${newStatus}`);
-      navigate('/dashboard/recruiter');
-    }, 1000);
+  const [application, setApplication] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAppDetails = async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/applications/${id}${jobId ? `?jobId=${jobId}` : ''}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Map DB keys to component state
+          setApplication({
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            jobTitle: data.jobTitle,
+            experience: data.experience + ' Yrs',
+            degree: data.degree,
+            field: data.field,
+            status: data.status,
+            coverLetter: data.coverLetter || "I am very excited to apply for this position.",
+            appliedAt: new Date().toLocaleDateString(), // We don't have this in DB yet, mock it
+            skills: ['React', 'Node.js', 'SQL'], // Mock or fetch from DB if available
+            resume: data.resume
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load application details', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAppDetails();
+  }, [id, jobId]);
+
+  const handleUpdateStatus = async (newStatus) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/applications/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: newStatus, jobId })
+      });
+      if (res.ok) {
+        setApplication({ ...application, status: newStatus });
+        alert(`Application marked as ${newStatus}`);
+        navigate('/dashboard/recruiter');
+      } else {
+        alert('Failed to update status');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error updating status');
+    }
   };
+
+  if (loading) return <div>Loading...</div>;
+  if (!application) return <div>Application not found.</div>;
 
   return (
     <div className="dashboard-page">
@@ -63,6 +109,8 @@ function ApplicationDetails() {
               <h4 style={{ fontSize: '1.2rem', marginBottom: '16px', color: 'var(--text-dark)' }}>Candidate Info</h4>
               <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <p style={{ marginBottom: '12px' }}><strong>Experience:</strong> {application.experience}</p>
+                {application.degree && <p style={{ marginBottom: '12px' }}><strong>Degree:</strong> {application.degree}</p>}
+                {application.field && <p style={{ marginBottom: '12px' }}><strong>Field:</strong> {application.field}</p>}
                 <p style={{ marginBottom: '12px' }}><strong>Applied Date:</strong> {application.appliedAt}</p>
                 <div>
                   <strong style={{ display: 'block', marginBottom: '8px' }}>Top Skills:</strong>
@@ -77,7 +125,20 @@ function ApplicationDetails() {
                <h4 style={{ fontSize: '1.2rem', marginBottom: '16px', color: 'var(--text-dark)' }}>Documents</h4>
                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
                   <FiFileText style={{ fontSize: '3rem', color: 'var(--primary-blue)', marginBottom: '16px' }} />
-                  <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FiDownload /> Download Resume</button>
+                  {application.resume ? (
+                    <a 
+                      href={`http://localhost:5000/uploads/resumes/${application.resume}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FiDownload /> Download Resume
+                      </button>
+                    </a>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)' }}>No resume provided</p>
+                  )}
                </div>
             </div>
           </div>
@@ -116,8 +177,5 @@ function ApplicationDetails() {
     </div>
   );
 }
-
-// Add FIFileText icon since it wasn't imported initially from react-icons/fi
-import { FiFileText } from 'react-icons/fi';
 
 export default ApplicationDetails;

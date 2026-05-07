@@ -11,13 +11,15 @@ const authHeaders = () => ({
 });
 
 function RecruiterDashboard() {
-  const { addJob } = useContext(JobContext);
+  const { addJob, updateJobContext } = useContext(JobContext);
   const [activeTab, setActiveTab] = useState('postings');
 
   // ── local state for this dashboard ─────────────────────────────────────────
   const [myJobs,      setMyJobs]      = useState([]);
   const [applicants,  setApplicants]  = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [editingJob, setEditingJob] = useState(null);
 
   // ── fetch recruiter's own jobs ──────────────────────────────────────────────
   useEffect(() => {
@@ -29,6 +31,7 @@ function RecruiterDashboard() {
         if (res.ok) {
           const data = await res.json();
           setMyJobs(data);
+          if (data.length > 0) setSelectedJobId(data[0].id);
         }
       } catch (e) {
         console.error('Failed to load jobs', e);
@@ -39,16 +42,14 @@ function RecruiterDashboard() {
     fetchMyJobs();
   }, []);
 
-  // ── fetch applicants when tab is opened ────────────────────────────────────
+  // ── fetch applicants when tab is opened or job changes ─────────────────────
   useEffect(() => {
-    if (activeTab !== 'applicants' || myJobs.length === 0) return;
+    if (activeTab !== 'applicants' || !selectedJobId) return;
 
     const fetchApplicants = async () => {
       try {
-        // Load applicants for the first job as a demo; in production
-        // you'd let the recruiter pick which job to view
         const res = await fetch(
-          `http://localhost:5000/api/jobs/${myJobs[0].id}/applications`,
+          `http://localhost:5000/api/jobs/${selectedJobId}/applications`,
           { headers: authHeaders() }
         );
         if (res.ok) setApplicants(await res.json());
@@ -57,45 +58,88 @@ function RecruiterDashboard() {
       }
     };
     fetchApplicants();
-  }, [activeTab, myJobs]);
+  }, [activeTab, selectedJobId]);
 
-  // ── post a new job ──────────────────────────────────────────────────────────
+  // ── post or update a job ───────────────────────────────────────────────────
   const handlePostJob = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
 
-    const newJobPayload = {
+    const jobPayload = {
       title:       formData.get('title'),
       location:    formData.get('location'),
       salary:      formData.get('salary'),
       description: formData.get('description'),
+      experience:  formData.get('experience'),
+      skills:      formData.get('skills'),
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/jobs', {
-        method:  'POST',
-        headers: authHeaders(),
-        body:    JSON.stringify(newJobPayload),
-      });
+      if (editingJob) {
+        // UPDATE
+        const res = await fetch(`http://localhost:5000/api/jobs/${editingJob.id}`, {
+          method:  'PUT',
+          headers: authHeaders(),
+          body:    JSON.stringify(jobPayload),
+        });
 
-      if (res.ok) {
-        const saved = await res.json();
-        const newJobLocal = {
-          id:         saved.jobId,
-          title:      newJobPayload.title,
-          location:   newJobPayload.location,
-          salary_lpa: newJobPayload.salary,
-          description:newJobPayload.description,
-          applicants: 0,
-          status:     'Active',
-          tags:       [],
-        };
-        setMyJobs(prev => [newJobLocal, ...prev]);
-        e.target.reset();
-        setActiveTab('postings');
+        if (res.ok) {
+          const updatedJobLocal = {
+            ...editingJob,
+            title:      jobPayload.title,
+            location:   jobPayload.location,
+            salary_lpa: jobPayload.salary,
+            description:jobPayload.description,
+            experience: jobPayload.experience,
+            tags:       jobPayload.skills ? jobPayload.skills.split(',').map(s => s.trim()) : [],
+          };
+          
+          setMyJobs(prev => prev.map(j => j.id === editingJob.id ? updatedJobLocal : j));
+          
+          // Also sync global context so Home page updates
+          updateJobContext(editingJob.id, {
+            title: jobPayload.title,
+            location: jobPayload.location,
+            salary: `₹ ${jobPayload.salary} LPA`,
+            salary_num: Number(jobPayload.salary) || 0,
+            description: jobPayload.description,
+            experience: jobPayload.experience,
+            tags: jobPayload.skills ? jobPayload.skills.split(',').map(s => s.trim()) : [],
+          });
+
+          e.target.reset();
+          setEditingJob(null);
+          setActiveTab('postings');
+        }
+      } else {
+        // CREATE
+        const res = await fetch('http://localhost:5000/api/jobs', {
+          method:  'POST',
+          headers: authHeaders(),
+          body:    JSON.stringify(jobPayload),
+        });
+
+        if (res.ok) {
+          const saved = await res.json();
+          const newJobLocal = {
+            id:         saved.jobId,
+            title:      jobPayload.title,
+            location:   jobPayload.location,
+            salary_lpa: jobPayload.salary,
+            description:jobPayload.description,
+            experience: jobPayload.experience,
+            applicants: 0,
+            status:     'Active',
+            tags:       jobPayload.skills ? jobPayload.skills.split(',').map(s => s.trim()) : [],
+          };
+          setMyJobs(prev => [newJobLocal, ...prev]);
+          addJob(newJobLocal); // Sync with global context
+          e.target.reset();
+          setActiveTab('postings');
+        }
       }
     } catch (err) {
-      console.error('Failed to post job', err);
+      console.error('Failed to post/update job', err);
     }
   };
 
@@ -125,9 +169,12 @@ function RecruiterDashboard() {
           {['postings', 'applicants', 'new'].map(tab => (
             <button key={tab}
               style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === tab ? 'rgba(99,102,241,0.1)' : 'transparent', color: activeTab === tab ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                if (tab !== 'new') setEditingJob(null);
+                setActiveTab(tab);
+              }}
             >
-              {tab === 'postings' ? 'My Job Postings' : tab === 'applicants' ? 'Manage Applicants' : 'Post a New Job'}
+              {tab === 'postings' ? 'My Job Postings' : tab === 'applicants' ? 'Manage Applicants' : (editingJob ? 'Edit Job' : 'Post a New Job')}
             </button>
           ))}
         </aside>
@@ -166,8 +213,19 @@ function RecruiterDashboard() {
                             </span>
                           </td>
                           <td style={{ padding: '16px 12px', display: 'flex', gap: '16px' }}>
-                            <button style={{ color: 'var(--primary-blue)', cursor: 'pointer', fontSize: '1.2rem' }} title="Edit"><FiEdit2 /></button>
-                            <button style={{ color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }} title="Delete" onClick={() => handleDeleteJob(job.id)}><FiTrash2 /></button>
+                            <button 
+                              style={{ color: 'var(--primary-blue)', cursor: 'pointer', fontSize: '1.2rem', background: 'none', border: 'none' }} 
+                              title="Edit"
+                              onClick={() => {
+                                setEditingJob(job);
+                                setActiveTab('new');
+                              }}
+                            >
+                              <FiEdit2 />
+                            </button>
+                            <button style={{ color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem', background: 'none', border: 'none' }} title="Delete" onClick={() => handleDeleteJob(job.id)}>
+                              <FiTrash2 />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -181,64 +239,124 @@ function RecruiterDashboard() {
           {/* ── MANAGE APPLICANTS ── */}
           {activeTab === 'applicants' && (
             <div>
-              <h3 style={{ marginBottom: '32px', fontSize: '1.5rem' }}>Applicant Tracking</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid rgba(226,232,240,0.8)' }}>
-                    {['Applicant Name', 'Applied For', 'Experience', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{h}</th>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                <h3 style={{ fontSize: '1.5rem', margin: 0 }}>Applicant Tracking</h3>
+                {myJobs.length > 0 && (
+                  <select 
+                    value={selectedJobId} 
+                    onChange={(e) => setSelectedJobId(e.target.value)}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', outline: 'none' }}
+                  >
+                    {myJobs.map(job => (
+                      <option key={job.id} value={job.id}>{job.title}</option>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {applicants.map(app => (
-                    <tr key={app.id} style={{ borderBottom: '1px solid rgba(226,232,240,0.4)' }}>
-                      <td style={{ padding: '16px 12px', fontWeight: '600' }}>{app.name}</td>
-                      <td style={{ padding: '16px 12px', color: 'var(--primary-blue)' }}>{app.job}</td>
-                      <td style={{ padding: '16px 12px' }}>{app.experience}</td>
-                      <td style={{ padding: '16px 12px' }}>
-                        {/* Pass seekerId in URL so ApplicationDetails can load it */}
-                        <Link to={`/application/${app.id}`}>
-                          <button className="btn-outline" style={{ padding: '6px 16px', fontSize: '0.9rem' }}>
-                            Review Application
-                          </button>
-                        </Link>
-                      </td>
+                  </select>
+                )}
+              </div>
+              
+              {myJobs.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)' }}>You haven't posted any jobs yet.</p>
+              ) : applicants.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)' }}>No applicants for this job yet.</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid rgba(226,232,240,0.8)' }}>
+                      {['Applicant Name', 'Job Applied', 'Experience', 'Resume', 'Actions'].map(h => (
+                        <th key={h} style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {applicants.map(app => (
+                      <tr key={app.id} style={{ borderBottom: '1px solid rgba(226,232,240,0.4)' }}>
+                        <td style={{ padding: '16px 12px', fontWeight: '600' }}>{app.name}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--primary-blue)' }}>{myJobs.find(j => j.id === selectedJobId)?.title || 'Unknown Job'}</td>
+                        <td style={{ padding: '16px 12px' }}>{app.experience} Yrs</td>
+                        <td style={{ padding: '16px 12px' }}>
+                          {app.resume ? (
+                            <a 
+                              href={`http://localhost:5000/uploads/resumes/${app.resume}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ color: 'var(--primary-blue)', textDecoration: 'underline' }}
+                            >
+                              View PDF
+                            </a>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>Not provided</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 12px' }}>
+                          {/* Pass seekerId in URL so ApplicationDetails can load it */}
+                          <Link to={`/application/${app.id}?jobId=${selectedJobId}`}>
+                            <button className="btn-outline" style={{ padding: '6px 16px', fontSize: '0.9rem' }}>
+                              Review Application
+                            </button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
-          {/* ── POST NEW JOB ── */}
+          {/* ── POST / EDIT JOB ── */}
           {activeTab === 'new' && (
             <div>
-              <h3 style={{ marginBottom: '32px', fontSize: '1.5rem' }}>Post a New Job</h3>
+              <h3 style={{ marginBottom: '32px', fontSize: '1.5rem' }}>{editingJob ? 'Edit Job' : 'Post a New Job'}</h3>
               <form onSubmit={handlePostJob}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Job Title</label>
-                    <input type="text" name="title" placeholder="e.g. Lead Developer" required />
+                    <input type="text" name="title" defaultValue={editingJob ? editingJob.title : ''} placeholder="e.g. Lead Developer" required />
                   </div>
                   <div className="form-group">
-                    <label>Location</label>
-                    <input type="text" name="location" placeholder="e.g. Bangalore / Remote" required />
+                    <label>Location / Work Mode</label>
+                    <input type="text" name="location" defaultValue={editingJob ? editingJob.location : ''} placeholder="e.g. Bangalore / Remote" required />
                   </div>
                   <div className="form-group">
                     <label>Salary (LPA)</label>
-                    <input type="text" name="salary" placeholder="e.g. 15" required />
+                    <input type="text" name="salary" defaultValue={editingJob ? editingJob.salary_lpa : ''} placeholder="e.g. 15" required />
+                  </div>
+                  <div className="form-group">
+                    <label>Experience Required</label>
+                    <select name="experience" defaultValue={editingJob ? editingJob.experience : ''} style={{ padding: '14px', borderRadius: '12px', border: '1.5px solid var(--border-color)', outline: 'none' }} required>
+                      <option value="">Select Experience</option>
+                      <option value="Entry Level">Entry Level</option>
+                      <option value="1-3 Yrs">1-3 Yrs</option>
+                      <option value="3-5 Yrs">3-5 Yrs</option>
+                      <option value="5-8 Yrs">5-8 Yrs</option>
+                      <option value="8+ Yrs">8+ Yrs</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Skills Required</label>
+                    <input type="text" name="skills" defaultValue={editingJob ? (editingJob.tags ? editingJob.tags.join(', ') : '') : ''} placeholder="e.g. React, Node.js, SQL" required />
                   </div>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Job Description</label>
                     <textarea name="description" rows="5"
+                      defaultValue={editingJob ? editingJob.description : ''}
                       style={{ padding: '16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', outline: 'none', fontFamily: 'inherit', resize: 'vertical', width: '100%' }}
                       placeholder="Detailed job requirements..." required />
                   </div>
                 </div>
-                <button className="btn-primary" type="submit" style={{ marginTop: '32px', padding: '14px 40px', fontSize: '1.1rem' }}>
-                  Publish Job
-                </button>
+                <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
+                  {editingJob && (
+                    <button type="button" className="btn-outline" style={{ padding: '14px 40px', fontSize: '1.1rem' }} onClick={() => {
+                      setEditingJob(null);
+                      setActiveTab('postings');
+                    }}>
+                      Cancel
+                    </button>
+                  )}
+                  <button className="btn-primary" type="submit" style={{ padding: '14px 40px', fontSize: '1.1rem' }}>
+                    {editingJob ? 'Update Job' : 'Publish Job'}
+                  </button>
+                </div>
               </form>
             </div>
           )}

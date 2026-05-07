@@ -32,11 +32,12 @@ export function JobProvider({ children }) {
             company: job.company_name,
             rating: '4.5', 
             reviews: '100+ Reviews',
-            experience: 'Any', 
+            experience: job.experience || 'Any', 
             salary: `₹ ${job.salary_lpa} LPA`,
+            salary_num: Number(job.salary_lpa) || 0,
             location: job.location,
             description: job.description,
-            tags: ['Database', 'Web'], 
+            tags: job.tags || [], 
             postedAgo: new Date(job.posted_at).toLocaleDateString(),
             applicants: 0,
             status: 'Active'
@@ -73,8 +74,13 @@ useEffect(() => {
 }, [currentUser]);
 
   const addJob = async (newJob) => {
-    // Optimistic UI update or wait for BE. Realistically, we update BE:
-    setJobs([{ ...newJob, id: jobs.length + 1, applicants: 0, status: 'Active' }, ...jobs]);
+    setJobs([{ ...newJob, applicants: 0, status: 'Active' }, ...jobs]);
+  };
+
+  const updateJobContext = (jobId, updatedData) => {
+    setJobs(prevJobs => prevJobs.map(job => 
+      job.id === jobId ? { ...job, ...updatedData } : job
+    ));
   };
 
   const applyToJob = async (jobId) => {
@@ -107,6 +113,7 @@ useEffect(() => {
       jobs, 
       setJobs, 
       addJob,
+      updateJobContext,
       currentUser, 
       setCurrentUser,
       appliedJobs,

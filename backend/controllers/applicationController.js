@@ -36,10 +36,10 @@ const applyToJob = async (req, res) => {
   }
 };
 
-// GET /api/seekers/:id/applications — all applications for a seeker
+// GET /api/seekers/me/applications — all applications for a seeker
 const getSeekerApplications = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.user.id;
 
     const [rows] = await pool.query(
       `SELECT
@@ -74,11 +74,13 @@ const getJobApplications = async (req, res) => {
         u.email,
         si.experience,
         aj.status,
-        j.job_title               AS job
+        j.job_title               AS job,
+        sr.resume                 AS resume
        FROM applied_jobs aj
-       JOIN seeker_info si ON aj.seeker_id = si.seeker_id
-       JOIN users u        ON aj.seeker_id = u.user_id
-       JOIN jobs j         ON aj.job_id = j.job_id
+       JOIN seeker_info si    ON aj.seeker_id = si.seeker_id
+       JOIN users u           ON aj.seeker_id = u.user_id
+       JOIN jobs j            ON aj.job_id = j.job_id
+       LEFT JOIN seeker_resume sr ON aj.seeker_id = sr.seeker_id
        WHERE aj.job_id = UUID_TO_BIN(?)`,
       [jobId]
     );

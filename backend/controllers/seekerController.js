@@ -3,7 +3,7 @@ const pool = require("../config/db");
 // GET /api/seekers/me
 const getSeekerProfile = async (req, res) => {
   try {
-    const id = req.user.id;   // from JWT
+    const id = req.user.id;   
 
     const [rows] = await pool.query(
       `SELECT
@@ -86,7 +86,7 @@ const updateSeekerProfile = async (req, res) => {
 // PUT /api/seekers/me/resume
 const updateResume = async (req, res) => {
   try {
-    const id = req.user.id;   // from JWT — was wrongly using req.params.id
+    const id = req.user.id;   
     const { resumePath } = req.body;
 
     if (!resumePath) {

@@ -22,7 +22,6 @@ const transporter = nodemailer.createTransport({
 const register = async (req, res) => {
   try {
     const {
-      // Frontend sends "name" not "seeker_name", and "companyName" for recruiter
       name,
       email,
       password,

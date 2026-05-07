@@ -9,6 +9,7 @@ function JobSeekerDashboard() {
   const [activeTab, setActiveTab] = useState('profile');
   const [resumeFile, setResumeFile] = useState(null);           // newly picked file
   const [hasExistingResume, setHasExistingResume] = useState(false); // from DB
+  const [myApplications, setMyApplications] = useState([]);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -41,12 +42,24 @@ function JobSeekerDashboard() {
       .catch(console.error);
   }, []);
 
+  // Fetch detailed applications
+  useEffect(() => {
+    if (activeTab === 'applied') {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      fetch('http://localhost:5000/api/seekers/me/applications', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setMyApplications(data))
+        .catch(console.error);
+    }
+  }, [activeTab]);
+
   const handleFileChange = (e) => setResumeFile(e.target.files[0] || null);
 
   // True when seeker already has a DB resume OR just picked a new file
   const resumeReady = !!resumeFile || hasExistingResume;
-
-  const appliedJobsList = jobs.filter(job => appliedJobs.includes(job.id));
 
   return (
     <div className="dashboard-page">
@@ -59,9 +72,8 @@ function JobSeekerDashboard() {
           <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'profile' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'profile' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }} onClick={() => setActiveTab('profile')}>My Profile</button>
           <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'applied' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'applied' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600', display: 'flex', justifyContent: 'space-between' }} onClick={() => setActiveTab('applied')}>
             Applied Jobs
-            {appliedJobsList.length > 0 && <span style={{ background: 'var(--primary-orange)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem' }}>{appliedJobsList.length}</span>}
+            {myApplications.length > 0 && <span style={{ background: 'var(--primary-orange)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem' }}>{myApplications.length}</span>}
           </button>
-          <button style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '8px', background: activeTab === 'saved' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: activeTab === 'saved' ? 'var(--primary-blue)' : 'var(--text-dark)', fontWeight: '600' }} onClick={() => setActiveTab('saved')}>Saved Jobs</button>
         </aside>
 
         {/* Content Area */}
@@ -127,20 +139,29 @@ function JobSeekerDashboard() {
           {activeTab === 'applied' && (
             <div>
               <h3 style={{ marginBottom: '24px', fontSize: '1.5rem' }}>Your Applications</h3>
-              {appliedJobsList.length === 0 ? (
+              {myApplications.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
                   <p>You haven't applied to any jobs yet.</p>
                   <Link to="/" className="btn-primary" style={{ display: 'inline-block', marginTop: '16px' }}>Browse Jobs</Link>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: '16px' }}>
-                  {appliedJobsList.map(job => (
-                    <div key={job.id} style={{ border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '12px', padding: '20px', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {myApplications.map(app => (
+                    <div key={app.id} style={{ border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '12px', padding: '20px', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <Link to={`/job/${job.id}`}><h4 style={{ fontSize: '1.15rem', color: 'var(--primary-blue)', marginBottom: '4px' }}>{job.title}</h4></Link>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>{job.company} • Applied recently</p>
+                        <Link to={`/job/${app.job_id}`}><h4 style={{ fontSize: '1.15rem', color: 'var(--primary-blue)', marginBottom: '4px' }}>{app.title}</h4></Link>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>{app.company} • Applied recently</p>
                       </div>
-                      <div style={{ padding: '6px 16px', borderRadius: '20px', background: '#dcfce7', color: '#166534', fontSize: '0.9rem', fontWeight: '600' }}>In Review</div>
+                      <div style={{ 
+                        padding: '6px 16px', 
+                        borderRadius: '20px', 
+                        background: app.status === 'Accepted' ? '#dcfce7' : app.status === 'Rejected' ? '#fee2e2' : '#fef3c7', 
+                        color: app.status === 'Accepted' ? '#166534' : app.status === 'Rejected' ? '#991b1b' : '#b45309', 
+                        fontSize: '0.9rem', 
+                        fontWeight: '600' 
+                      }}>
+                        {app.status === 'Pending' ? 'In Review' : app.status}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -148,14 +169,6 @@ function JobSeekerDashboard() {
             </div>
           )}
 
-          {activeTab === 'saved' && (
-            <div>
-              <h3 style={{ marginBottom: '24px', fontSize: '1.5rem' }}>Saved Jobs</h3>
-              <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
-                 <p>No jobs saved yet.</p>
-              </div>
-            </div>
-          )}
         </main>
       </div>
     </div>

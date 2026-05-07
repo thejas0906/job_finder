@@ -12,8 +12,9 @@ const getAllJobs = async (req, res) => {
         j.job_desc               AS description,
         j.salary                 AS salary_lpa,
         j.location,
-        j.skillls                AS skills,
-        r.comp_name              AS company_name
+        j.experience,
+        j.skills                AS skills,
+        r.comp_name             AS company_name
       FROM jobs j
       LEFT JOIN recruiter_info r ON j.comp_id = r.comp_id
       ORDER BY j.job_id DESC
@@ -46,7 +47,8 @@ const getJobById = async (req, res) => {
         j.job_desc              AS description,
         j.salary                AS salary_lpa,
         j.location,
-        j.skillls               AS skills,
+        j.experience,
+        j.skills                AS skills,
         r.comp_name             AS company_name
       FROM jobs j
       LEFT JOIN recruiter_info r ON j.comp_id = r.comp_id
@@ -72,7 +74,11 @@ const getJobById = async (req, res) => {
 const createJob = async (req, res) => {
   try {
     const recruiterId = req.user.id; // from JWT middleware
-    const { title, description, salary, location, skills } = req.body;
+    const { title, description, salary, location, skills, experience } = req.body;
+
+    if (req.user.role !== 'recruiter') {
+      return res.status(403).json({ message: "Only recruiters can post jobs" });
+    }
 
     if (!title || !location) {
       return res.status(400).json({ message: "Title and location are required" });
@@ -81,9 +87,9 @@ const createJob = async (req, res) => {
     const job_id = uuidv4();
 
     await pool.query(
-      `INSERT INTO jobs (job_id, comp_id, job_title, job_desc, salary, location, skillls)
-       VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?)`,
-      [job_id, recruiterId, title, description || "", salary || null, location, skills || ""]
+      `INSERT INTO jobs (job_id, comp_id, job_title, job_desc, salary, location, skills, experience)
+       VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)`,
+      [job_id, recruiterId, title, description || "", salary || null, location, skills || "", experience || ""]
     );
 
     res.status(201).json({ message: "Job posted successfully", jobId: job_id });
@@ -115,4 +121,33 @@ const deleteJob = async (req, res) => {
   }
 };
 
-module.exports = { getAllJobs, getJobById, createJob, deleteJob };
+// PUT /api/jobs/:id — recruiter updates a job
+const updateJob = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const recruiterId = req.user.id;
+    const { title, description, salary, location, skills, experience } = req.body;
+
+    if (req.user.role !== 'recruiter') {
+      return res.status(403).json({ message: "Only recruiters can update jobs" });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE jobs 
+       SET job_title = ?, job_desc = ?, salary = ?, location = ?, skills = ?, experience = ?
+       WHERE job_id = UUID_TO_BIN(?) AND comp_id = UUID_TO_BIN(?)`,
+      [title, description || "", salary || null, location, skills || "", experience || "", id, recruiterId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Job not found or unauthorized" });
+    }
+
+    res.json({ message: "Job updated successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = { getAllJobs, getJobById, createJob, deleteJob, updateJob };

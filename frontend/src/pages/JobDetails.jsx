@@ -11,11 +11,11 @@ function JobDetails() {
   const [applyComplete, setApplyComplete] = useState(false);
   const [error, setError] = useState('');
 
-  const job = jobs.find(j => j.id === parseInt(id));
+  const job = jobs.find(j => String(j.id) === String(id));
 
   // Check if already applied
   useEffect(() => {
-    if (appliedJobs.includes(parseInt(id))) {
+    if (appliedJobs.includes(id)) {
       setApplyComplete(true);
     }
   }, [appliedJobs, id]);
@@ -81,17 +81,32 @@ function JobDetails() {
 
           {!isApplying && !applyComplete && (
             <div className="job-actions">
-              <button className="btn-primary" style={{ padding: '14px 40px', fontSize: '1.1rem' }} onClick={() => setIsApplying(true)}>Apply Now</button>
+              <button 
+                className="btn-primary" 
+                style={{ padding: '14px 40px', fontSize: '1.1rem' }} 
+                onClick={() => {
+                  const token = localStorage.getItem('token');
+                  const role = localStorage.getItem('userRole');
+                  if (!token) {
+                    navigate('/login');
+                  } else if (role !== 'seeker') {
+                    alert('Only Job Seekers can apply for jobs.');
+                  } else {
+                    setIsApplying(true);
+                  }
+                }}
+              >
+                Apply Now
+              </button>
             </div>
           )}
 
           {isApplying && !applyComplete && (
             <form className="apply-form" style={{ background: 'rgba(255, 255, 255, 0.8)', padding: '32px', borderRadius: '16px', border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: 'var(--shadow-md)'}} onSubmit={handleApplySubmit}>
-              <h3 style={{ marginBottom: '24px', fontSize: '1.25rem' }}>Submit your Application</h3>
-              <div className="form-group">
-                <label>Upload Resume (PDF format)</label>
-                <input type="file" accept=".pdf" required style={{ background: 'white' }} />
-              </div>
+              <h3 style={{ marginBottom: '16px', fontSize: '1.25rem' }}>Submit your Application</h3>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+                Your saved profile details and resume will be automatically sent to the recruiter.
+              </p>
               <div className="form-group">
                 <label>Cover Letter (Optional)</label>
                 <textarea rows="4" style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} placeholder="Why are you a good fit?"></textarea>

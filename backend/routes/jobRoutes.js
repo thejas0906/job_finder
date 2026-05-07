@@ -6,6 +6,7 @@ const {
   getJobById,
   createJob,
   deleteJob,
+  updateJob,
 } = require("../controllers/jobController");
 const {
   getJobApplications,
@@ -18,6 +19,7 @@ router.get("/:id", getJobById);
 // Protected
 router.post("/", protect, createJob);
 router.delete("/:id", protect, deleteJob);
+router.put("/:id", protect, updateJob);
 
 // Recruiter: applicants for a specific job
 router.get("/:jobId/applications", protect, getJobApplications);

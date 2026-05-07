@@ -9,8 +9,6 @@ const {
   forceDeleteJob,
 } = require("../controllers/adminController");
 
-// All admin routes require authentication
-// (In production, add a role-check middleware here)
 router.use(protect);
 
 router.get("/stats", getStats);
